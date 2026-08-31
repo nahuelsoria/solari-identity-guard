@@ -94,12 +94,14 @@ export class IdentityGuard {
       // logged-out browser.
       if (browser.session.storageState === null) throw new EmptyProfileError(label)
 
-      // The profile's cookies live in the session's default context. Opening a
-      // fresh one via `newPage()` is not the same thing, so reach for
-      // `contexts()[0]` and reuse its page when it already has one.
-      const context = browser.contexts()[0]
-      if (!context) throw new IdentityUnverifiableError(label, "session exposed no browser context")
-      const page = context.pages()[0] ?? (await context.newPage())
+      // `contexts()` is empty on a fresh session. The SDK's own doc comment
+      // points callers at `contexts()[0]` ("most callers want contexts()[0]"),
+      // but that array only fills once a page exists, so reading it first
+      // throws on undefined. Reuse a context when the session already has one,
+      // otherwise open the page and take the context it comes with.
+      const existing = browser.contexts()[0]
+      const page = existing ? (existing.pages()[0] ?? (await existing.newPage())) : await browser.newPage()
+      const context = page.context()
 
       const probe = buildProbe(entry.probe, label)
       let actual: string | null

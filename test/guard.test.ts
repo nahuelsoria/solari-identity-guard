@@ -119,3 +119,15 @@ test("identity comparison ignores case unless the entry opts out", () => {
   assert.equal(identityMatches({ ...base, caseSensitive: true }, "nahuelsoria"), false)
   assert.equal(identityMatches(base, "someone-else"), false)
 })
+
+test("launch works on a fresh session whose contexts() is still empty", async () => {
+  const { guard } = guardFor({ hasContexts: false })
+  const browser = await guard.launch("github-personal")
+  assert.equal(browser.identity, "nahuelsoria")
+})
+
+test("launch reuses an existing context when the session already has one", async () => {
+  const { guard } = guardFor({ hasContexts: true })
+  const browser = await guard.launch("github-personal")
+  assert.equal(browser.identity, "nahuelsoria")
+})

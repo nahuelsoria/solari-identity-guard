@@ -12,7 +12,7 @@ Built on the [Solari cookbook](https://github.com/solari-sdk/solari-cookbook) pr
 Solari profiles are the right primitive. You log in once, attach `profileId`, and the
 browser starts already authenticated. You stop paying the 2FA, the bot check and the login on every run.
 
-The gap is that a profile does not know who it is. The SDK type carries nothing else:
+The gap is that a profile does not know who it is. The SDK type says as much:
 
 ```ts
 export interface Profile {
@@ -22,9 +22,21 @@ export interface Profile {
 }
 ```
 
-There is no metadata field, no `profiles.get()`, and nothing on the session tells you
-which account the cookies belong to. `name` is whatever string you passed at creation,
-and it stays that string even after the underlying login changes.
+The API returns more than that under the index signature, but none of it identifies an
+account. A real `profiles.create()` response looks like this:
+
+```json
+{
+  "id": "cmth...", "orgId": "cmth...", "name": "github-personal",
+  "sizeBytes": "0", "version": 1, "lastUsedAt": null,
+  "createdAt": "2026-08-31T22:11:33.626Z", "storageStateS3Key": null
+}
+```
+
+Size, version and timestamps, and nothing about whose cookies these are. There is no
+`profiles.get()` either, and nothing on the session tells you which account the state
+belongs to. `name` is whatever string you passed at creation, and it stays that string
+after the underlying login changes.
 
 That produces two failures, and the second one is worse.
 
@@ -164,15 +176,19 @@ profile is told apart from an absent one.
 
 ## Gotchas encoded here
 
-- **The probe runs in `contexts()[0]`, not `newPage()`.** The SDK ships a default context
-  at `contexts()[0]` and points callers there instead of `newContext()`, so that is where
-  the profile's cookies are. The guard probes that context rather than opening a fresh one.
+- **`contexts()` is empty on a fresh session.** The SDK's doc comment says sessions ship
+  with a default context and tells you most callers want `contexts()[0]`. On a session
+  that has not opened a page yet, that array has nothing in it, so reading `[0]` hands you
+  `undefined` and the next property access throws. Open the page first and take the
+  context it comes with.
 - **`solari.close()` is mandatory.** The client keeps a loopback proxy open for retries.
   Skip it and the process prints its output and then hangs forever.
 - **The audit is sequential.** The free plan allows three concurrent browsers, and a
   parallel sweep trips `ConcurrencyLimitExceeded`.
 - **A failed launch must close its browser.** Otherwise a run that correctly refuses to act
-  still leaks the session it opened.
+  still leaks the session it opened. A leaked session also keeps the process alive after
+  `solari.close()`, and on the free plan three of them exhaust the concurrency cap and
+  every later launch returns `429 ConcurrencyLimitExceeded` until they expire.
 
 ## License
 

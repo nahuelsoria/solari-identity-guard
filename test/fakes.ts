@@ -14,6 +14,8 @@ export interface FakeState {
   /** Tri-state from Session.storageState. */
   storageState: unknown
   probeThrows?: boolean
+  /** false reproduces a fresh session, whose contexts() is empty. */
+  hasContexts?: boolean
   /** Recorded so a test can prove a rejected run left nothing behind. */
   closed: boolean
   saveCalls: Array<{ profileId: string; state: unknown }>
@@ -41,6 +43,7 @@ export function makeFakes(overrides: Partial<FakeState> = {}) {
         async storageState() {
           return { cookies: [{ name: "session", value: "abc" }] }
         },
+        pages: () => [page],
       }
     },
   } as unknown as Page
@@ -51,11 +54,17 @@ export function makeFakes(overrides: Partial<FakeState> = {}) {
       return page
     },
   }
+  // Mirrors the real API: a fresh session reports no contexts until a page
+  // exists, so the guard has to cope with both shapes.
+  const contexts = overrides.hasContexts === false ? [] : [context]
 
   const browser = {
     id: "ses_fake",
     session: { get storageState() { return state.storageState } },
-    contexts: () => [context],
+    contexts: () => contexts,
+    async newPage() {
+      return page
+    },
     async close() {
       state.closed = true
     },
