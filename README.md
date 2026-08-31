@@ -151,6 +151,17 @@ One warning on writing probes. Pick an element that only exists when logged in. 
 that also matches a signed-out page will return a string, and the comparison will pass
 against a browser that is not logged in at all.
 
+## Tests
+
+```bash
+npm test
+```
+
+Eleven tests over the guard's decisions, with no network call. They pin the behaviour that
+is easy to regress: a rejected launch closes its session, a blocked save never reaches
+`profiles.save()`, an unverifiable probe is a failure rather than a pass, and an empty
+profile is told apart from an absent one.
+
 ## Gotchas encoded here
 
 - **The probe runs in `contexts()[0]`, not `newPage()`.** The SDK ships a default context
