@@ -1,0 +1,10 @@
+{
+  "profiles": [
+    {
+      "label": "github-personal",
+      "profileId": "",
+      "expect": "nahuelsoria",
+      "probe": { "kind": "github" }
+    }
+  ]
+}

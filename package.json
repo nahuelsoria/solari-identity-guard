@@ -1,0 +1,22 @@
+{
+  "name": "solari-identity-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fail-closed identity verification for Solari browser profiles. Proves which account is inside a profile before an agent acts, and refuses to persist a session that would poison it.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "bind": "tsx examples/01-bind-profile.ts",
+    "launch": "tsx examples/02-guarded-launch.ts",
+    "mismatch": "tsx examples/03-mismatch-demo.ts",
+    "audit": "tsx examples/04-audit-profiles.ts"
+  },
+  "dependencies": {
+    "@solarisdk/browser": "^0.1.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0"
+  }
+}
