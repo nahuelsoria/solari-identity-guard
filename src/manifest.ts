@@ -10,7 +10,7 @@ import { BUILT_IN_PROBES, domProbe, type BuiltInProbeKind, type Probe } from "./
 
 export type ProbeSpec =
   | { kind: BuiltInProbeKind }
-  | { kind: "dom"; url: string; selector: string; attribute?: string }
+  | { kind: "dom"; url: string; selector: string; attribute?: string; signedOutSelector?: string }
 
 export interface ProfileEntry {
   /** Stable human name used everywhere in code and errors. */
@@ -43,11 +43,14 @@ function validateProbe(path: string, probe: unknown): ProbeSpec {
       fail(path, 'probe.selector is required for kind "dom"')
     if (p.attribute !== undefined && typeof p.attribute !== "string")
       fail(path, "probe.attribute must be a string when present")
+    if (p.signedOutSelector !== undefined && typeof p.signedOutSelector !== "string")
+      fail(path, "probe.signedOutSelector must be a string when present")
     return {
       kind: "dom",
       url: p.url,
       selector: p.selector,
       ...(p.attribute !== undefined ? { attribute: p.attribute } : {}),
+      ...(p.signedOutSelector !== undefined ? { signedOutSelector: p.signedOutSelector } : {}),
     }
   }
 
@@ -124,7 +127,13 @@ export async function bindProfileId(
 
 export function buildProbe(spec: ProbeSpec, label: string): Probe {
   if (spec.kind === "dom") {
-    return domProbe({ name: `dom:${label}`, url: spec.url, selector: spec.selector, ...(spec.attribute !== undefined ? { attribute: spec.attribute } : {}) })
+    return domProbe({
+      name: `dom:${label}`,
+      url: spec.url,
+      selector: spec.selector,
+      ...(spec.attribute !== undefined ? { attribute: spec.attribute } : {}),
+      ...(spec.signedOutSelector !== undefined ? { signedOutSelector: spec.signedOutSelector } : {}),
+    })
   }
   return BUILT_IN_PROBES[spec.kind]()
 }

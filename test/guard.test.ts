@@ -6,6 +6,7 @@ import {
   IdentityMismatchError,
   IdentityUnverifiableError,
   ProfilePoisoningError,
+  ProfileSignedOutError,
   UnknownProfileError,
 } from "../src/errors.js"
 import { parseManifest, identityMatches } from "../src/manifest.js"
@@ -33,6 +34,18 @@ test("launch fails closed when the probe cannot name an account", async () => {
   const { guard, state } = guardFor({ identity: null })
   await assert.rejects(() => guard.launch("github-personal"), IdentityUnverifiableError)
   assert.equal(state.closed, true)
+})
+
+test("an expired session is reported as signed out, not as unverifiable", async () => {
+  const { guard, state } = guardFor({ identity: null, signedOut: true })
+  await assert.rejects(() => guard.launch("github-personal"), ProfileSignedOutError)
+  assert.equal(state.closed, true)
+})
+
+test("save refuses to overwrite a good profile with a signed-out session", async () => {
+  const { guard, page, state } = guardFor({ identity: null, signedOut: true })
+  await assert.rejects(() => guard.save("github-personal", page), ProfileSignedOutError)
+  assert.deepEqual(state.saveCalls, [])
 })
 
 test("launch fails closed when the probe throws", async () => {
@@ -81,6 +94,9 @@ test("audit labels each profile with what is inside it", async () => {
 
   const empty = guardFor({ storageState: null })
   assert.equal((await empty.guard.audit())[0]?.status, "empty")
+
+  const out = guardFor({ identity: null, signedOut: true })
+  assert.equal((await out.guard.audit())[0]?.status, "signed-out")
 
   const unbound = guardFor({}, { profiles: [{ ...MANIFEST.profiles[0]!, profileId: "" }] })
   assert.equal((await unbound.guard.audit())[0]?.status, "unbound")

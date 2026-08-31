@@ -14,6 +14,8 @@ export interface FakeState {
   /** Tri-state from Session.storageState. */
   storageState: unknown
   probeThrows?: boolean
+  /** true makes the probe see a recognisable logged-out page. */
+  signedOut?: boolean
   /** false reproduces a fresh session, whose contexts() is empty. */
   hasContexts?: boolean
   /** Recorded so a test can prove a rejected run left nothing behind. */
@@ -36,7 +38,12 @@ export function makeFakes(overrides: Partial<FakeState> = {}) {
       return null
     },
     async evaluate() {
-      return state.identity
+      // Shape the github probe reads back out of the page.
+      return {
+        login: state.identity ?? "",
+        hasSignIn: state.signedOut === true,
+        url: "https://github.com/",
+      }
     },
     context() {
       return {

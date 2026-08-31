@@ -5,8 +5,10 @@ import {
   IdentityMismatchError,
   IdentityUnverifiableError,
   ProfilePoisoningError,
+  ProfileSignedOutError,
   UnknownProfileError,
 } from "./errors.js"
+import type { ProbeOutcome } from "./probes.js"
 import {
   buildProbe,
   identityMatches,
@@ -28,7 +30,7 @@ export interface GuardedBrowser extends AsyncDisposable {
   close(): Promise<void>
 }
 
-export type AuditStatus = "ok" | "mismatch" | "empty" | "unverifiable" | "unbound"
+export type AuditStatus = "ok" | "mismatch" | "signed-out" | "empty" | "unverifiable" | "unbound"
 
 export interface AuditRow {
   label: string
@@ -104,24 +106,22 @@ export class IdentityGuard {
       const context = page.context()
 
       const probe = buildProbe(entry.probe, label)
-      let actual: string | null
+      let outcome: ProbeOutcome
       try {
-        actual = await probe.run(page)
+        outcome = await probe.run(page)
       } catch (err) {
         throw new IdentityUnverifiableError(label, `probe "${probe.name}" threw: ${(err as Error).message}`)
       }
-      if (!actual) {
-        throw new IdentityUnverifiableError(
-          label,
-          `probe "${probe.name}" found no signed-in account (the profile is probably logged out or expired)`,
-        )
+      if (outcome.status === "signed-out") throw new ProfileSignedOutError(label)
+      if (outcome.status === "unknown") {
+        throw new IdentityUnverifiableError(label, `probe "${probe.name}": ${outcome.reason}`)
       }
-      if (!identityMatches(entry, actual)) {
-        throw new IdentityMismatchError(label, entry.expect, actual)
+      if (!identityMatches(entry, outcome.identity)) {
+        throw new IdentityMismatchError(label, entry.expect, outcome.identity)
       }
 
       const guarded: GuardedBrowser = {
-        identity: actual,
+        identity: outcome.identity,
         label,
         context,
         page,
@@ -151,17 +151,21 @@ export class IdentityGuard {
     const entry = this.entry(label)
     const probe = buildProbe(entry.probe, label)
 
-    let actual: string | null
+    let outcome: ProbeOutcome
     try {
-      actual = await probe.run(page)
+      outcome = await probe.run(page)
     } catch (err) {
       throw new IdentityUnverifiableError(label, `probe "${probe.name}" threw during save: ${(err as Error).message}`)
     }
-    if (!actual) {
-      throw new IdentityUnverifiableError(label, `probe "${probe.name}" found no signed-in account during save`)
+    // A signed-out page during save is still a refusal: writing an anonymous
+    // storageState over a good profile destroys the login just as thoroughly as
+    // writing the wrong one.
+    if (outcome.status === "signed-out") throw new ProfileSignedOutError(label)
+    if (outcome.status === "unknown") {
+      throw new IdentityUnverifiableError(label, `probe "${probe.name}" during save: ${outcome.reason}`)
     }
-    if (!identityMatches(entry, actual)) {
-      throw new ProfilePoisoningError(label, entry.expect, actual)
+    if (!identityMatches(entry, outcome.identity)) {
+      throw new ProfilePoisoningError(label, entry.expect, outcome.identity)
     }
 
     const state = (await page.context().storageState()) as StorageState
@@ -191,6 +195,8 @@ export class IdentityGuard {
       } catch (err) {
         if (err instanceof IdentityMismatchError) {
           rows.push({ label, expected: entry.expect, actual: err.actual, status: "mismatch" })
+        } else if (err instanceof ProfileSignedOutError) {
+          rows.push({ label, expected: entry.expect, actual: null, status: "signed-out" })
         } else if (err instanceof EmptyProfileError) {
           rows.push({ label, expected: entry.expect, actual: null, status: "empty" })
         } else {

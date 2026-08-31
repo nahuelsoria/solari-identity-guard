@@ -7,8 +7,9 @@ export {
   EmptyProfileError,
   UnknownProfileError,
   ProfilePoisoningError,
+  ProfileSignedOutError,
 } from "./errors.js"
-export { githubProbe, domProbe, customProbe, type Probe } from "./probes.js"
+export { githubProbe, domProbe, customProbe, type Probe, type ProbeOutcome } from "./probes.js"
 export {
   loadManifest,
   parseManifest,

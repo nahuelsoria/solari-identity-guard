@@ -88,3 +88,18 @@ export class ProfilePoisoningError extends IdentityGuardError {
     )
   }
 }
+
+/**
+ * The profile is intact but the site no longer recognises the session.
+ * Separate from `IdentityUnverifiableError` on purpose: this one has an obvious
+ * fix (re-bind the login) while that one means go look at the page.
+ */
+export class ProfileSignedOutError extends IdentityGuardError {
+  constructor(profileLabel: string) {
+    super(
+      `profile "${profileLabel}" is signed out. The stored session expired or was revoked, ` +
+        `so it needs a fresh bind.`,
+      profileLabel,
+    )
+  }
+}

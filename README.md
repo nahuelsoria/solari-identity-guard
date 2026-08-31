@@ -97,12 +97,42 @@ after it is about a logged-out browser.
 | --- | --- |
 | `IdentityMismatchError` | The profile holds a different account than the manifest declares |
 | `ProfilePoisoningError` | A save was attempted for a session whose identity does not match |
+| `ProfileSignedOutError` | The profile is intact but the site no longer recognises the session |
 | `EmptyProfileError` | The profile is attached but carries no cookies or localStorage |
-| `IdentityUnverifiableError` | The probe ran but could not name an account |
+| `IdentityUnverifiableError` | The probe ran and could not tell either way |
 | `UnknownProfileError` | The manifest does not describe this profile |
 
 Each one names the failure so the fix is obvious: re-login, re-bind, or go read what the
 last run did.
+
+The split between the last two carries most of the value. "Signed out" means the stored
+session expired and the fix is a fresh bind. "Unverifiable" means the probe could not tell
+and the fix is to go look at the page. A guard that collapses them produces the worst
+message available at 3am: "could not read the account", when the real answer was "the
+login expired".
+
+That distinction is not a guess. It comes from the local version of this pattern that
+already runs here against five Chrome profiles, where a signed-out X session has two
+different shapes, the explicit login flow and a silent bounce to the marketing page.
+Handling only the first meant every expired session spent the full probe timeout and then
+reported the wrong diagnosis.
+
+## Where this comes from
+
+This is a generalisation of something already running in production rather than an idea
+sketched against the docs. The same guard runs locally against a fleet of five Chrome profiles, one per
+account, and it exists because of a specific afternoon: the debug port was passed through
+an environment variable that did not survive the hop into a Windows process, every call
+fell back to the default profile, and and an hour went by under the confident impression that
+one account was being read while the reads were coming from another. Nothing errored,
+because nothing was checking.
+
+Publishing to the wrong account cannot be fully undone. The notification reaches the
+followers even if the post is deleted a minute later. So the check belongs in code, and it has to run
+before the action rather than after it.
+
+Solari's profiles move that fleet into the cloud and remove most of the reasons it was
+painful. They do not remove this one.
 
 ## Setup
 
