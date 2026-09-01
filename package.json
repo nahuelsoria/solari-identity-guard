@@ -10,7 +10,8 @@
     "launch": "tsx examples/02-guarded-launch.ts",
     "mismatch": "tsx examples/03-mismatch-demo.ts",
     "audit": "tsx examples/04-audit-profiles.ts",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "e2e": "tsx examples/05-verify-end-to-end.ts"
   },
   "dependencies": {
     "@solarisdk/browser": "^0.1.1"

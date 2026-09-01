@@ -147,3 +147,11 @@ test("launch reuses an existing context when the session already has one", async
   const browser = await guard.launch("github-personal")
   assert.equal(browser.identity, "nahuelsoria")
 })
+
+test("launch hands the profile's state to the context it creates", async () => {
+  // The bug this pins: attaching profileId alone leaves the browser logged out,
+  // so a guard that skips this check would probe an anonymous session.
+  const { guard, state } = guardFor()
+  await guard.launch("github-personal")
+  assert.deepEqual(state.contextStorageState, { cookies: [] })
+})

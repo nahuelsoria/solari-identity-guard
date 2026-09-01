@@ -9,7 +9,7 @@ export {
   ProfilePoisoningError,
   ProfileSignedOutError,
 } from "./errors.js"
-export { githubProbe, domProbe, customProbe, type Probe, type ProbeOutcome } from "./probes.js"
+export { githubProbe, domProbe, localStorageProbe, customProbe, type Probe, type ProbeOutcome } from "./probes.js"
 export {
   loadManifest,
   parseManifest,

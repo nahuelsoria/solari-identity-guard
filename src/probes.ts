@@ -98,6 +98,54 @@ export function domProbe(opts: {
   }
 }
 
+/**
+ * Reads the account out of `localStorage`, where single-page apps routinely
+ * keep the signed-in user. Give `path` when the value is JSON, as a dot path
+ * into the parsed object ("user.login").
+ *
+ * A missing key reports signed-out rather than unknown: for an app that writes
+ * its session there, an absent key is what being logged out looks like.
+ */
+export function localStorageProbe(opts: {
+  name: string
+  url: string
+  key: string
+  path?: string
+}): Probe {
+  return {
+    name: opts.name,
+    async run(page) {
+      await page.goto(opts.url, { waitUntil: "domcontentloaded", timeout: PROBE_TIMEOUT_MS })
+      const raw = await page.evaluate((k: string) => localStorage.getItem(k), opts.key)
+      if (raw === null) return { status: "signed-out" }
+
+      if (!opts.path) {
+        const value = raw.trim()
+        return value
+          ? { status: "identified", identity: value }
+          : { status: "unknown", reason: `localStorage["${opts.key}"] was empty` }
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        return { status: "unknown", reason: `localStorage["${opts.key}"] is not JSON` }
+      }
+      let cur: unknown = parsed
+      for (const seg of opts.path.split(".")) {
+        if (typeof cur !== "object" || cur === null) {
+          return { status: "unknown", reason: `path "${opts.path}" does not resolve` }
+        }
+        cur = (cur as Record<string, unknown>)[seg]
+      }
+      return typeof cur === "string" && cur.trim()
+        ? { status: "identified", identity: cur.trim() }
+        : { status: "unknown", reason: `path "${opts.path}" did not yield a string` }
+    },
+  }
+}
+
 /** Escape hatch: bring your own logic when a site needs more than a selector. */
 export function customProbe(name: string, run: (page: Page) => Promise<ProbeOutcome>): Probe {
   return { name, run }

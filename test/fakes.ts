@@ -20,6 +20,8 @@ export interface FakeState {
   hasContexts?: boolean
   /** Recorded so a test can prove a rejected run left nothing behind. */
   closed: boolean
+  /** What the guard passed to newContext({ storageState }). */
+  contextStorageState?: unknown
   saveCalls: Array<{ profileId: string; state: unknown }>
 }
 
@@ -55,10 +57,13 @@ export function makeFakes(overrides: Partial<FakeState> = {}) {
     },
   } as unknown as Page
 
-  const context = {
+  const context: any = {
     pages: () => [page],
     async newPage() {
       return page
+    },
+    async storageState() {
+      return { cookies: [{ name: "session", value: "abc" }] }
     },
   }
   // Mirrors the real API: a fresh session reports no contexts until a page
@@ -71,6 +76,12 @@ export function makeFakes(overrides: Partial<FakeState> = {}) {
     contexts: () => contexts,
     async newPage() {
       return page
+    },
+    async newContext(opts?: { storageState?: unknown }) {
+      // Recorded so a test can prove the guard actually hands the profile's
+      // state to the context instead of trusting profileId alone.
+      state.contextStorageState = opts?.storageState
+      return context
     },
     async close() {
       state.closed = true

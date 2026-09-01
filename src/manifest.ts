@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises"
-import { BUILT_IN_PROBES, domProbe, type BuiltInProbeKind, type Probe } from "./probes.js"
+import { BUILT_IN_PROBES, domProbe, localStorageProbe, type BuiltInProbeKind, type Probe } from "./probes.js"
 
 /**
  * The manifest is the whole point: Solari's `Profile` is `{ id, name }` and
@@ -11,6 +11,7 @@ import { BUILT_IN_PROBES, domProbe, type BuiltInProbeKind, type Probe } from "./
 export type ProbeSpec =
   | { kind: BuiltInProbeKind }
   | { kind: "dom"; url: string; selector: string; attribute?: string; signedOutSelector?: string }
+  | { kind: "localStorage"; url: string; key: string; path?: string }
 
 export interface ProfileEntry {
   /** Stable human name used everywhere in code and errors. */
@@ -54,8 +55,21 @@ function validateProbe(path: string, probe: unknown): ProbeSpec {
     }
   }
 
+  if (p.kind === "localStorage") {
+    if (typeof p.url !== "string" || !p.url) fail(path, 'probe.url is required for kind "localStorage"')
+    if (typeof p.key !== "string" || !p.key) fail(path, 'probe.key is required for kind "localStorage"')
+    if (p.path !== undefined && typeof p.path !== "string")
+      fail(path, "probe.path must be a string when present")
+    return {
+      kind: "localStorage",
+      url: p.url,
+      key: p.key,
+      ...(p.path !== undefined ? { path: p.path } : {}),
+    }
+  }
+
   if (!(p.kind in BUILT_IN_PROBES)) {
-    const known = [...Object.keys(BUILT_IN_PROBES), "dom"].join(", ")
+    const known = [...Object.keys(BUILT_IN_PROBES), "dom", "localStorage"].join(", ")
     fail(path, `unknown probe kind "${p.kind}". Known kinds: ${known}`)
   }
   return { kind: p.kind as BuiltInProbeKind }
@@ -126,6 +140,14 @@ export async function bindProfileId(
 }
 
 export function buildProbe(spec: ProbeSpec, label: string): Probe {
+  if (spec.kind === "localStorage") {
+    return localStorageProbe({
+      name: `localStorage:${label}`,
+      url: spec.url,
+      key: spec.key,
+      ...(spec.path !== undefined ? { path: spec.path } : {}),
+    })
+  }
   if (spec.kind === "dom") {
     return domProbe({
       name: `dom:${label}`,

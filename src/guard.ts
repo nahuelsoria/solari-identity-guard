@@ -1,4 +1,4 @@
-import type { BrowserContext, Page } from "patchright-core"
+import type { BrowserContext, BrowserContextOptions, Page } from "patchright-core"
 import type { LaunchOptions, Solari, StorageState } from "@solarisdk/browser"
 import {
   EmptyProfileError,
@@ -96,14 +96,19 @@ export class IdentityGuard {
       // logged-out browser.
       if (browser.session.storageState === null) throw new EmptyProfileError(label)
 
-      // `contexts()` is empty on a fresh session. The SDK's own doc comment
-      // points callers at `contexts()[0]` ("most callers want contexts()[0]"),
-      // but that array only fills once a page exists, so reading it first
-      // throws on undefined. Reuse a context when the session already has one,
-      // otherwise open the page and take the context it comes with.
-      const existing = browser.contexts()[0]
-      const page = existing ? (existing.pages()[0] ?? (await existing.newPage())) : await browser.newPage()
-      const context = page.context()
+      // Attaching `profileId` does NOT log the browser in. It delivers the
+      // stored state to `session.storageState` and stops there: a context made
+      // by `newPage()` or a bare `newContext()` comes up empty, cookies and
+      // localStorage both. The state has to be handed to the context at
+      // creation, which is why `Session.storageState` is on the type at all.
+      //
+      // Verified against the live API. `addCookies()` is not a substitute; it
+      // restores cookies and silently drops localStorage, which is where most
+      // modern sessions keep their tokens.
+      const context = await browser.newContext({
+        storageState: browser.session.storageState as BrowserContextOptions["storageState"],
+      })
+      const page = await context.newPage()
 
       const probe = buildProbe(entry.probe, label)
       let outcome: ProbeOutcome

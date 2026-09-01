@@ -9,10 +9,51 @@ Built on the [Solari cookbook](https://github.com/solari-sdk/solari-cookbook) pr
 
 ## The problem
 
-Solari profiles are the right primitive. You log in once, attach `profileId`, and the
-browser starts already authenticated. You stop paying the 2FA, the bot check and the login on every run.
+Solari profiles are the right primitive. You log in once, attach `profileId`, and stop
+paying the 2FA, the bot check and the login on every run.
 
-The gap is that a profile does not know who it is. The SDK type says as much:
+Two things get in the way, and the first one is not in any doc.
+
+### Attaching a profile does not log the browser in
+
+`launch({ profileId })` delivers the stored state to `session.storageState` and stops
+there. A context opened with `newPage()` comes up empty, cookies and localStorage both.
+The state has to be handed to the context when you create it:
+
+```ts
+const browser = await solari.launch({ profileId })
+const context = await browser.newContext({ storageState: browser.session.storageState })
+const page = await context.newPage()
+```
+
+This is worth stating plainly, because the cookbook's own `browser-profiles-ts` example
+does it the other way. Its comment says "run this file twice: the first run logs in and
+saves, the second reuses it", and it prints a visit counter kept in localStorage. Run
+unmodified against the live API three times, it prints:
+
+```
+created profile cmtint9gd01y7o101x3ssica7
+visit #1 for this profile
+saved profile v2 (106 bytes)
+
+reusing profile cmtint9gd01y7o101x3ssica7
+visit #1 for this profile
+saved profile v3 (106 bytes)
+
+reusing profile cmtint9gd01y7o101x3ssica7
+visit #1 for this profile
+saved profile v4 (106 bytes)
+```
+
+The profile is reused and a new version is saved every run, and the counter never moves
+past one. Nothing restores. `addCookies()` is not a workaround either: it brings the
+cookies back and drops localStorage, which is where most current sessions keep their
+tokens.
+
+An agent built on that shape runs logged out while looking like it is logged in, which is
+the same class of failure as running as the wrong account.
+
+### A profile does not know who it is The SDK type says as much:
 
 ```ts
 export interface Profile {
@@ -38,7 +79,7 @@ Size, version and timestamps, and nothing about whose cookies these are. There i
 belongs to. `name` is whatever string you passed at creation, and it stays that string
 after the underlying login changes.
 
-That produces two failures, and the second one is worse.
+That produces two more failures, and the second one is worse.
 
 **Reading as the wrong account.** This happens through a copy-pasted profile id, a config
 lookup that falls back to a default, or a reordered array. The browser opens, everything
@@ -193,6 +234,28 @@ One warning on writing probes. Pick an element that only exists when logged in. 
 that also matches a signed-out page will return a string, and the comparison will pass
 against a browser that is not logged in at all.
 
+## Verified against the live API
+
+```bash
+npm run e2e
+```
+
+Every claim above is checked end to end against real Solari infrastructure, using nothing
+but an API key. It seeds a throwaway profile, walks the guard through all seven outcomes,
+and deletes the profiles on the way out:
+
+```
+seeded: {"version":2,"sizeBytes":123}
+  OK   launch verified as nahuelsoria
+  OK   save allowed when the identity matches (v3)
+  OK   launch blocked: expected someone-else, found nahuelsoria
+  OK   save blocked before the profile was written
+  OK   empty profile caught before navigating
+  OK   signed out told apart from unreadable
+  audit: good=ok wrong=mismatch empty=empty unbound=unbound
+  OK   audit classifies all four states
+```
+
 ## Tests
 
 ```bash
@@ -209,8 +272,9 @@ profile is told apart from an absent one.
 - **`contexts()` is empty on a fresh session.** The SDK's doc comment says sessions ship
   with a default context and tells you most callers want `contexts()[0]`. On a session
   that has not opened a page yet, that array has nothing in it, so reading `[0]` hands you
-  `undefined` and the next property access throws. Open the page first and take the
-  context it comes with.
+  `undefined` and the next property access throws.
+- **`profileId` alone restores nothing.** Covered above, and it is the one that costs you
+  a day, because the browser looks fine and the automation behaves as a stranger.
 - **`solari.close()` is mandatory.** The client keeps a loopback proxy open for retries.
   Skip it and the process prints its output and then hangs forever.
 - **The audit is sequential.** The free plan allows three concurrent browsers, and a
