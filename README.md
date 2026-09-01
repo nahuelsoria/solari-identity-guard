@@ -53,7 +53,9 @@ tokens.
 An agent built on that shape runs logged out while looking like it is logged in, which is
 the same class of failure as running as the wrong account.
 
-### A profile does not know who it is The SDK type says as much:
+### A profile does not know who it is
+
+The SDK type says as much:
 
 ```ts
 export interface Profile {
@@ -161,16 +163,16 @@ reported the wrong diagnosis.
 ## Where this comes from
 
 This is a generalisation of something already running in production rather than an idea
-sketched against the docs. The same guard runs locally against a fleet of five Chrome profiles, one per
-account, and it exists because of a specific afternoon: the debug port was passed through
+sketched against the docs. The same guard runs locally against a fleet of five Chrome profiles, one
+per account, and it exists because of a specific afternoon: the debug port was passed through
 an environment variable that did not survive the hop into a Windows process, every call
-fell back to the default profile, and and an hour went by under the confident impression that
-one account was being read while the reads were coming from another. Nothing errored,
+fell back to the default profile, and an hour went by under the confident impression
+that one account was being read while the reads were coming from another. Nothing errored,
 because nothing was checking.
 
 Publishing to the wrong account cannot be fully undone. The notification reaches the
-followers even if the post is deleted a minute later. So the check belongs in code, and it has to run
-before the action rather than after it.
+followers even if the post is deleted a minute later. So the check belongs in code, and
+it has to run before the action rather than after it.
 
 Solari's profiles move that fleet into the cloud and remove most of the reasons it was
 painful. They do not remove this one.
@@ -217,7 +219,19 @@ is no version history to roll back to.
       "probe": {
         "kind": "dom",
         "url": "https://app.acme.example/settings",
-        "selector": "[data-testid=current-user]"
+        "selector": "[data-testid=current-user]",
+        "signedOutSelector": "[data-testid=login-form]"
+      }
+    },
+    {
+      "label": "acme-spa",
+      "profileId": "prf_...",
+      "expect": "ops@acme.example",
+      "probe": {
+        "kind": "localStorage",
+        "url": "https://app.acme.example",
+        "key": "session",
+        "path": "user.email"
       }
     }
   ]
@@ -226,9 +240,11 @@ is no version history to roll back to.
 
 `expect` is compared case-insensitively unless the entry sets `caseSensitive: true`.
 
-Two probes ship: `github`, which reads the `meta[name="user-login"]` tag that signed-in
-pages carry, and `dom`, which reads a selector on any page. Write your own with
-`customProbe(name, fn)` when a site needs more than a selector.
+Three probes ship. `github` reads the `meta[name="user-login"]` tag that signed-in pages
+carry. `dom` reads a selector on any page, and takes an optional `signedOutSelector` so an
+expired session reports as signed out rather than unreadable. `localStorage` reads the key
+where single-page apps keep the current user, with an optional dot `path` when the value
+is JSON. Write your own with `customProbe(name, fn)` when a site needs more than that.
 
 One warning on writing probes. Pick an element that only exists when logged in. A selector
 that also matches a signed-out page will return a string, and the comparison will pass
@@ -262,7 +278,7 @@ seeded: {"version":2,"sizeBytes":123}
 npm test
 ```
 
-Eleven tests over the guard's decisions, with no network call. They pin the behaviour that
+Sixteen tests over the guard's decisions, with no network call. They pin the behaviour that
 is easy to regress: a rejected launch closes its session, a blocked save never reaches
 `profiles.save()`, an unverifiable probe is a failure rather than a pass, and an empty
 profile is told apart from an absent one.
